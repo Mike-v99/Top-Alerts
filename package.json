@@ -3,6 +3,9 @@
   "version": "1.0.0",
   "description": "Top-Alerts core alert engine, price feed, and delivery worker",
   "type": "module",
+  "engines": {
+    "node": "20.x"
+  },
   "scripts": {
     "dev": "node --watch src/index.js",
     "start": "node src/index.js",
@@ -25,4 +28,3 @@
     "nodemon": "^3.0.3"
   }
 }
-{"engines":{"node":"20.x"}}
