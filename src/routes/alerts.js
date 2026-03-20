@@ -9,7 +9,7 @@ import { supabase } from "../lib/supabase.js";
 export const alertsRouter = Router();
 
 // Plan limits
-const PLAN_LIMITS = { free: 3, pro: Infinity, team: Infinity };
+const PLAN_LIMITS = { free: 10, pro: Infinity, team: Infinity };
 
 // ── Middleware: verify JWT ────────────────────────────────────────────────────
 
@@ -63,7 +63,7 @@ alertsRouter.post("/", async (req, res) => {
   if (!profile) return res.status(404).json({ error: "Profile not found" });
 
   // Enforce free plan limit
-  const limit = PLAN_LIMITS[profile.plan] ?? 3;
+  const limit = PLAN_LIMITS[profile.plan] ?? 10;
   if (profile.alert_count >= limit) {
     return res.status(403).json({
       error: `Free plan limit reached (${limit} alerts). Upgrade to Pro for unlimited alerts.`,
