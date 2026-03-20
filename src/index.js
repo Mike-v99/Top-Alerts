@@ -17,10 +17,14 @@ app.use("/stripe/webhook", express.raw({ type: "application/json" }));
 // JSON for all other routes
 app.use(express.json());
 
-// CORS — update origins for production
+// CORS
 app.use((req, res, next) => {
-  const allowed = ["http://localhost:5173", "https://top-alerts.app"];
-  const origin  = req.headers.origin;
+  const allowed = [
+    "http://localhost:5173",
+    "https://top-alerts.com",
+    "https://www.top-alerts.com",
+  ];
+  const origin = req.headers.origin;
   if (allowed.includes(origin)) res.setHeader("Access-Control-Allow-Origin", origin);
   res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
   res.setHeader("Access-Control-Allow-Methods", "GET, POST, PATCH, DELETE, OPTIONS");
