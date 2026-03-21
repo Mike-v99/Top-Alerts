@@ -74,7 +74,7 @@ async function processJob(job) {
   // Load user profile for contact details
   const { data: profile } = await supabase
     .from("profiles")
-    .select("email")
+    .select("email, phone")
     .eq("id", job.userId)
     .single();
 
@@ -133,4 +133,105 @@ async function sendEmail(job, message, email) {
     from:    "Top-Alerts <alerts@top-alerts.com>",
     to:      email,
     subject: message.title,
-    html:    buildEmailHtml(
+    html:    buildEmailHtml(job, message),
+  });
+}
+
+async function sendSms(job, message, phone) {
+  if (!phone) throw new Error("No phone number for user");
+  if (!twilioClient) throw new Error("Twilio not configured");
+  await twilioClient.messages.create({
+    body: `${message.title}\n${message.body}`,
+    from: config.delivery.twilioFrom,
+    to:   phone,
+  });
+}
+
+async function sendWebhook(job) {
+  if (!job.webhookUrl) throw new Error("No webhook URL configured for this alert");
+
+  const payload = {
+    event:        "alert.fired",
+    alert_id:     job.alertId,
+    asset:        job.asset,
+    trigger_type: job.triggerType,
+    reason:       job.reason,
+    price:        job.price,
+    fired_at:     job.firedAt,
+    timestamp:    Date.now(),
+  };
+
+  await axios.post(job.webhookUrl, payload, {
+    headers: {
+      "Content-Type": "application/json",
+      "User-Agent":   "Top-Alerts/1.0",
+    },
+    timeout: 10000,  // 10s timeout — don't hang the worker
+  });
+}
+
+// ── Message formatting ────────────────────────────────────────────────────────
+
+function formatMessage(job) {
+  const priceStr = Number(job.price).toLocaleString("en-US", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  });
+
+  const triggerLabel = job.triggerType.replace(/_/g, " ");
+
+  return {
+    title: `🔔 ${job.asset} — ${triggerLabel}`,
+    body:  `${job.reason} · Price: $${priceStr}`,
+  };
+}
+
+function buildEmailHtml(job, message) {
+  const priceStr = Number(job.price).toLocaleString("en-US", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  });
+
+  return `
+<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8"/></head>
+<body style="margin:0;padding:0;background:#faf9f6;font-family:'Helvetica Neue',Arial,sans-serif;">
+  <div style="max-width:520px;margin:32px auto;background:#ffffff;border-radius:12px;overflow:hidden;border:1px solid #e8e4dc;">
+    <div style="background:#0a1f4a;padding:28px 32px;">
+      <div style="font-size:11px;letter-spacing:2px;color:rgba(255,255,255,0.5);margin-bottom:8px;">TOP-ALERTS</div>
+      <div style="font-size:22px;color:#e8f2ff;font-weight:500;">${message.title}</div>
+    </div>
+    <div style="padding:28px 32px;">
+      <div style="font-size:14px;color:#6a6050;line-height:1.6;margin-bottom:20px;">
+        Your alert for <strong style="color:#1a1200">${job.asset}</strong> has been triggered.
+      </div>
+      <div style="background:#f4f2ed;border:1px solid #e8e4dc;border-radius:8px;padding:16px 20px;margin-bottom:20px;">
+        <div style="display:flex;justify-content:space-between;margin-bottom:8px;">
+          <span style="font-size:12px;color:#aaa090;letter-spacing:1px;">TRIGGER</span>
+          <span style="font-size:13px;color:#1a1200;font-weight:500;">${job.triggerType.replace(/_/g, " ")}</span>
+        </div>
+        <div style="display:flex;justify-content:space-between;margin-bottom:8px;">
+          <span style="font-size:12px;color:#aaa090;letter-spacing:1px;">PRICE</span>
+          <span style="font-size:13px;color:#1a1200;font-weight:500;">$${priceStr}</span>
+        </div>
+        <div style="display:flex;justify-content:space-between;">
+          <span style="font-size:12px;color:#aaa090;letter-spacing:1px;">TIME</span>
+          <span style="font-size:13px;color:#1a1200;font-weight:500;">${new Date(job.firedAt).toLocaleString("en-US", { dateStyle: "medium", timeStyle: "short" })}</span>
+        </div>
+      </div>
+      <div style="font-size:12px;color:#aaa090;margin-bottom:4px;">${job.reason}</div>
+    </div>
+    <div style="padding:16px 32px;border-top:1px solid #e8e4dc;text-align:center;">
+      <a href="https://top-alerts.com/app" style="font-size:14px;color:#0a1f4a;text-decoration:none;font-weight:500;">View in Top-Alerts →</a>
+    </div>
+  </div>
+</body>
+</html>`;
+}
+
+// ── Helpers ────────────────────────────────────────────────────────────────────
+
+function sleep(ms) {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
